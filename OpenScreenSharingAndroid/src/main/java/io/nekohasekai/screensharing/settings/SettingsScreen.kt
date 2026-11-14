@@ -261,12 +261,6 @@ private fun PictureSettingsView(navigationIcon: @Composable () -> Unit) {
         SectionHeader(stringResource(R.string.settings_behavior))
         ListGroup {
             SwitchRow(
-                stringResource(R.string.pen_side_button_scroll),
-                AppSettings.stylusButtonScrolls,
-                onCheckedChange = { AppSettings.stylusButtonScrolls = it },
-                icon = Icons.Outlined.Mouse,
-            )
-            SwitchRow(
                 stringResource(R.string.settings_full_screen),
                 AppSettings.pictureFillsScreen,
                 onCheckedChange = { AppSettings.pictureFillsScreen = it },
@@ -304,7 +298,59 @@ private fun ControlSettingsView(navigationIcon: @Composable () -> Unit, onOpenCu
                 icon = Icons.Outlined.ZoomIn,
             )
         }
+        SectionHeader(stringResource(R.string.pen_settings_title))
+        ListGroup {
+            SwitchRow(
+                stringResource(R.string.pen_side_button_scroll),
+                AppSettings.stylusButtonScrolls,
+                onCheckedChange = { AppSettings.stylusButtonScrolls = it },
+                icon = Icons.Outlined.Mouse,
+            )
+            SwitchRow(
+                stringResource(R.string.pen_hover_scroll),
+                AppSettings.stylusHoverScrolls,
+                onCheckedChange = { AppSettings.stylusHoverScrolls = it },
+                icon = Icons.Outlined.Mouse,
+            )
+            PenScrollSpeedRow()
+            SwitchRow(
+                stringResource(R.string.pen_reverse_scroll),
+                AppSettings.stylusScrollReversed,
+                onCheckedChange = { AppSettings.stylusScrollReversed = it },
+                icon = Icons.Outlined.Tune,
+            )
+        }
         SectionFooter(stringResource(R.string.pen_side_button_help))
+        SectionFooter(stringResource(R.string.pen_s25_help))
+    }
+}
+
+@Composable
+private fun PenScrollSpeedRow() {
+    var isPicking by remember { mutableStateOf(false) }
+    val choices = listOf(
+        0.5f to stringResource(R.string.pen_scroll_slow),
+        1f to stringResource(R.string.pen_scroll_normal),
+        2f to stringResource(R.string.pen_scroll_fast),
+    )
+    ListItem(
+        headlineContent = { Text(stringResource(R.string.pen_scroll_speed)) },
+        supportingContent = { Text(choices.firstOrNull { it.first == AppSettings.stylusScrollSpeed }?.second ?: choices[1].second) },
+        leadingContent = { Icon(Icons.Outlined.Tune, contentDescription = null) },
+        colors = groupItemColors(),
+        modifier = Modifier.clickable { isPicking = true },
+    )
+    if (isPicking) {
+        ChoiceDialog(
+            title = stringResource(R.string.pen_scroll_speed),
+            choices = choices,
+            selected = AppSettings.stylusScrollSpeed,
+            onSelect = {
+                AppSettings.stylusScrollSpeed = it
+                isPicking = false
+            },
+            onDismiss = { isPicking = false },
+        )
     }
 }
 

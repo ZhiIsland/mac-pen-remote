@@ -7,11 +7,17 @@ An independent Android fork of [Open Screen Sharing](https://github.com/nekohase
 - Pen tip without the side button: normal left click and drag.
 - Hold the primary pen side button, then touch and lift: right click.
 - Hold the primary pen side button, then drag: vertical or horizontal scrolling, without opening a context menu.
+- Near-screen hover: press and release the side button without moving for a right click; hold it and move the pen above the screen to scroll. This can be disabled separately.
+- Releasing the button stops scrolling. A cancelled contact is consumed until pen-up, so it cannot become an accidental left drag.
+- Hover exit, pen contact and window focus loss cancel pending hover actions. Lifting the pen after a contact cannot produce an additional hover right click from the same held button.
 - A movement threshold prevents hand jitter from turning a right click into scrolling. Cancellation never generates a right click.
 - Settings → Control → S Pen side-button scrolling restores the original right-button drag behavior when disabled.
+- Settings → Control also offers pen scrolling at 0.5×, 1× or 2× speed and an optional reversed direction, applying to both hover and tip scrolling.
 - If Samsung intercepts the side button, disable **Open Air command with Pen button** in the device's S Pen settings. The exact name varies by One UI version.
 
 These controls work through ordinary VNC and Apple VNC. They do not add pressure or tilt support. Real S Pen hardware validation is still required.
+
+**Galaxy S25 Ultra:** Samsung removed Bluetooth/BLE and Air Actions from its S Pen. This fork uses Android's near-screen stylus hover/button events; it cannot receive distant button presses or motion gestures. See [Samsung's S25 Ultra S Pen guidance](https://www.samsung.com/us/support/answer/ANS10004602/). Actual hover-button delivery depends on One UI and its Air Command settings; test on the phone before relying on it.
 
 ## High Performance recovery
 

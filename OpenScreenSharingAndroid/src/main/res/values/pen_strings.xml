@@ -1,7 +1,15 @@
 <!-- Fork additions currently ship in English and Chinese; other locales use English. -->
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="pen_side_button_scroll">S Pen: side-button scrolling</string>
-    <string name="pen_side_button_help">Hold the pen side button and tap for a right-click, or drag to scroll. Without the button, tap and drag work normally. Turn this off for the original right-button drag. If Samsung opens Air Command, disable “Open Air command with Pen button” in S Pen settings.</string>
+    <string name="pen_settings_title">S Pen controls</string>
+    <string name="pen_hover_scroll">Side button while hovering</string>
+    <string name="pen_scroll_speed">Pen scrolling speed</string>
+    <string name="pen_scroll_slow">Slow (0.5×)</string>
+    <string name="pen_scroll_normal">Normal (1×)</string>
+    <string name="pen_scroll_fast">Fast (2×)</string>
+    <string name="pen_reverse_scroll">Reverse pen scrolling</string>
+    <string name="pen_side_button_help">Hold the side button and tap the screen for a right-click, or drag to scroll. With hovering enabled, hold the button and move above the screen to scroll; press and release without moving for a right-click. Keep the pen within the screen’s hover range. Releasing the button stops scrolling. Without the button, tap and drag work normally. Turn off side-button scrolling for the original right-button drag. If Samsung opens Air Command, disable “Open Air command with Pen button” in S Pen settings.</string>
+    <string name="pen_s25_help">Galaxy S25 Ultra’s S Pen has no Bluetooth or Air Actions. These controls use near-screen pen input; distant button presses are unavailable.</string>
     <string name="pen_media_fallback">High Performance could not display video. Reconnected using standard VNC. Check UDP forwarding on your gateway.</string>
     <string name="pen_media_timeout">No High Performance picture arrived within 12 seconds. TCP may work while the separate UDP video path is blocked or forwarded incorrectly.</string>
 </resources>

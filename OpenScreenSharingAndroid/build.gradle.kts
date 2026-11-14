@@ -45,8 +45,8 @@ android {
         applicationId = "io.github.zhiisland.macpenremote"
         minSdk = 24
         targetSdk = 37
-        versionCode = providers.gradleProperty("versionCode").orNull?.toInt() ?: 1
-        versionName = providers.gradleProperty("versionName").orNull ?: "1.0.1-pen.1"
+        versionCode = providers.gradleProperty("versionCode").orNull?.toInt() ?: 2
+        versionName = providers.gradleProperty("versionName").orNull ?: "1.0.1-pen.2"
         base.archivesName.set("MacPenRemote")
     }
 

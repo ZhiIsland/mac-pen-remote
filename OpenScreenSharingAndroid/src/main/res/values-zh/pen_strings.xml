@@ -1,6 +1,14 @@
 <resources>
     <string name="pen_side_button_scroll">S Pen 侧键滚动</string>
-    <string name="pen_side_button_help">按住笔侧键，点按是右键，拖动是滚动；不按侧键时照常点按、拖动。关闭此项可恢复原来的右键拖动。如果三星弹出浮窗指令，请在 S Pen 设置中关闭“使用 S Pen 按钮打开浮窗指令”。</string>
+    <string name="pen_settings_title">S Pen 操作</string>
+    <string name="pen_hover_scroll">悬停时使用侧键</string>
+    <string name="pen_scroll_speed">笔滚动速度</string>
+    <string name="pen_scroll_slow">慢速（0.5 倍）</string>
+    <string name="pen_scroll_normal">标准（1 倍）</string>
+    <string name="pen_scroll_fast">快速（2 倍）</string>
+    <string name="pen_reverse_scroll">反向滚动</string>
+    <string name="pen_side_button_help">按住侧键，笔尖点按是右键，拖动是滚动。开启悬停操作后，笔靠近屏幕，按住侧键移动即可滚动；原地按下再松开侧键是右键。笔必须在屏幕悬停感应范围内。松开侧键即停止滚动；不按侧键时照常点按、拖动。关闭侧键滚动可恢复原来的右键拖动。如果三星弹出浮窗指令，请在 S Pen 设置中关闭“使用 S Pen 按钮打开浮窗指令”。</string>
+    <string name="pen_s25_help">Galaxy S25 Ultra 的 S Pen 不支持蓝牙和隔空操作。这里使用靠近屏幕的笔输入，无法接收远离屏幕时的侧键。</string>
     <string name="pen_media_fallback">高性能模式无法显示画面，已使用普通 VNC 重新连接。请检查网关的 UDP 转发。</string>
     <string name="pen_media_timeout">高性能模式等待 12 秒仍未收到画面。TCP 连通时，独立的 UDP 视频通道仍可能被阻断或转发不正确。</string>
 </resources>

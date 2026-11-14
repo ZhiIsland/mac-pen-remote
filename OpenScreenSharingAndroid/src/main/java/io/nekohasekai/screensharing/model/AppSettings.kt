@@ -14,6 +14,12 @@ import kotlin.reflect.KProperty
 object AppSettings {
     var stylusButtonScrolls: Boolean by Persisted("stylusButtonScrolls", serializer<Boolean>(), true)
 
+    var stylusHoverScrolls: Boolean by Persisted("stylusHoverScrolls", serializer<Boolean>(), true)
+
+    var stylusScrollSpeed: Float by Persisted("stylusScrollSpeed", serializer<Float>(), 1f)
+
+    var stylusScrollReversed: Boolean by Persisted("stylusScrollReversed", serializer<Boolean>(), false)
+
     var showsDebugInfo: Boolean by Persisted("showsDebugInfo", serializer<Boolean>(), false)
 
     var cursorStyle: CursorStyle by Persisted("cursorStyle", serializer<CursorStyle>(), CursorStyle.System)

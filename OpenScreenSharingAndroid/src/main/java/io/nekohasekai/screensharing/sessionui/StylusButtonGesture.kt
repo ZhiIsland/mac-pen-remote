@@ -15,13 +15,13 @@ internal class StylusButtonGesture(private val slop: Float) {
 
     fun owns(id: Int): Boolean = pointer == id
 
-    fun begin(id: Int, x: Float, y: Float) {
+    fun begin(id: Int, x: Float, y: Float, alreadyScrolling: Boolean = false) {
         pointer = id
         startX = x
         startY = y
         lastX = x
         lastY = y
-        scrolling = false
+        scrolling = alreadyScrolling
     }
 
     fun move(id: Int, x: Float, y: Float): Delta? {

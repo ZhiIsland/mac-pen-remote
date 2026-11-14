@@ -103,6 +103,9 @@ class ScreenInput(
     private val touchSlop = configuration.scaledTouchSlop.toFloat()
     private val stylusButtonGesture = StylusButtonGesture(touchSlop)
     private var stylusScroll = ScrollStream()
+    private val stylusHoverGesture = StylusHoverGesture(touchSlop)
+    private var stylusHoverScroll = ScrollStream()
+    private val stylusTouches = HashSet<Int>()
     private val spanSlop = touchSlop * 2
     private val handler = Handler(Looper.getMainLooper())
     private val drag = ScreenDrag(view, controller, this)
@@ -203,6 +206,7 @@ class ScreenInput(
             observedTree = view.viewTreeObserver.also { it.addOnWindowFocusChangeListener(windowFocusListener) }
             PointerLock.addReceiver(pointerLockReceiver)
         } else if (!attached && observedTree != null) {
+            cancelStylusInput()
             observedTree?.takeIf { it.isAlive }?.removeOnWindowFocusChangeListener(windowFocusListener)
             observedTree = null
             PointerLock.removeReceiver(pointerLockReceiver)
@@ -214,8 +218,7 @@ class ScreenInput(
 
     fun detach() {
         detached = true
-        stylusButtonGesture.cancel()
-        endScroll(stylusScroll, Offset.Zero, cancelled = true)
+        cancelStylusInput()
         observedTree?.takeIf { it.isAlive }?.removeOnWindowFocusChangeListener(windowFocusListener)
         observedTree = null
         PointerLock.removeReceiver(pointerLockReceiver)
@@ -294,6 +297,14 @@ class ScreenInput(
     }
 
     private fun touchesBegan(event: MotionEvent, index: Int) {
+        val continuesHoverScroll = if (isStylus(event, index)) {
+            stylusTouches.add(event.getPointerId(index))
+            val continuesScroll = stylusHoverGesture.beginContact(event.buttonState and MotionEvent.BUTTON_STYLUS_PRIMARY != 0)
+            endScroll(stylusHoverScroll, Offset.Zero, cancelled = true)
+            continuesScroll
+        } else {
+            false
+        }
         if (drag.isDragging) return
         controller.stopScrollMomentum()
         view.takeKeyFocus()
@@ -306,7 +317,7 @@ class ScreenInput(
             controller.isZoomModeOn -> zoomTouchBegan(id, location, event.eventTime)
             isStylus(event, index) && AppSettings.stylusButtonScrolls &&
                 event.buttonState and MotionEvent.BUTTON_STYLUS_PRIMARY != 0 -> {
-                beginStylusScroll(id, location)
+                beginStylusScroll(id, location, alreadyScrolling = continuesHoverScroll)
             }
             mouse && event.buttonState == 0 && event.getToolType(index) == MotionEvent.TOOL_TYPE_FINGER -> padBegan(event, index)
             mouse -> pointerBegan(event, index)
@@ -323,6 +334,20 @@ class ScreenInput(
     }
 
     private fun touchesMoved(event: MotionEvent) {
+        // Some digitizers report button changes only in ACTION_MOVE.
+        for (index in 0 until event.pointerCount) {
+            val id = event.getPointerId(index)
+            if (AppSettings.stylusButtonScrolls && isStylus(event, index) && id in pointerTouches &&
+                event.buttonState and MotionEvent.BUTTON_STYLUS_PRIMARY != 0
+            ) {
+                pointerTouches.remove(id)
+                controller.setPressedButtons(PointerButtons.None)
+                beginStylusScroll(id, point(event, index))
+            }
+            if (stylusButtonGesture.owns(id) && event.buttonState and MotionEvent.BUTTON_STYLUS_PRIMARY == 0) {
+                cancelStylusContact(id)
+            }
+        }
         val moved = (0 until event.pointerCount).filter { point(event, it) != locations[event.getPointerId(it)] }
         if (moved.isEmpty()) return
         zoomTouchesMoved(event, moved)
@@ -334,8 +359,12 @@ class ScreenInput(
         for (index in moved) {
             val id = event.getPointerId(index)
             if (stylusButtonGesture.owns(id)) {
-                val location = point(event, index)
-                stylusButtonGesture.move(id, location.x, location.y)?.let { scroll(stylusScroll, Offset(it.x, it.y)) }
+                if (!allowsStylusButtonInput || event.buttonState and MotionEvent.BUTTON_STYLUS_PRIMARY == 0) {
+                    cancelStylusContact(id)
+                } else {
+                    val location = point(event, index)
+                    stylusButtonGesture.move(id, location.x, location.y)?.let { scrollStylus(stylusScroll, it) }
+                }
                 continue
             }
             if (zoomTouches.containsKey(id) || nativeTouches.containsKey(id) || id in claimedTouches) continue
@@ -351,15 +380,17 @@ class ScreenInput(
 
     private fun touchesEnded(event: MotionEvent, index: Int, cancelled: Boolean) {
         val id = event.getPointerId(index)
+        stylusTouches.remove(id)
         val location = point(event, index)
         val time = event.eventTime
         if (stylusButtonGesture.owns(id)) {
+            val cancel = cancelled || !allowsStylusButtonInput
             // Some devices coalesce the final motion into ACTION_UP.
-            if (!cancelled) {
-                stylusButtonGesture.move(id, location.x, location.y)?.let { scroll(stylusScroll, Offset(it.x, it.y)) }
+            if (!cancel) {
+                stylusButtonGesture.move(id, location.x, location.y)?.let { scrollStylus(stylusScroll, it) }
             }
-            val rightClick = stylusButtonGesture.finish(id, cancelled)
-            endScroll(stylusScroll, Offset.Zero, cancelled)
+            val rightClick = stylusButtonGesture.finish(id, cancel)
+            endScroll(stylusScroll, Offset.Zero, cancel)
             if (rightClick) controller.click(PointerButtons.Secondary)
             return
         }
@@ -925,13 +956,21 @@ class ScreenInput(
             }
             MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE -> {
                 val id = event.getPointerId(0)
-                if (stylusButtonGesture.owns(id)) return true
+                if (isStylus(event, 0) && stylusButtonGesture.owns(id)) {
+                    if (event.buttonState and MotionEvent.BUTTON_STYLUS_PRIMARY == 0) cancelStylusContact(id)
+                    return true
+                }
+                if (id in claimedTouches && isStylus(event, 0)) return true
                 if (AppSettings.stylusButtonScrolls && isStylus(event, 0) && id in pointerTouches &&
                     event.buttonState and MotionEvent.BUTTON_STYLUS_PRIMARY != 0
                 ) {
                     pointerTouches.remove(id)
                     controller.setPressedButtons(PointerButtons.None)
                     beginStylusScroll(id, point(event, 0))
+                    return true
+                }
+                if (isStylus(event, 0) && id !in stylusTouches) {
+                    handleStylusHover(event)
                     return true
                 }
                 if (event.getPointerId(0) in pointerTouches) {
@@ -965,6 +1004,13 @@ class ScreenInput(
         if (action == MotionEvent.ACTION_HOVER_ENTER || action == MotionEvent.ACTION_HOVER_MOVE) {
             trackSystemPointer(location, fromPointer = !isStylus(event, 0))
         }
+        if (isStylus(event, 0)) {
+            if (action == MotionEvent.ACTION_HOVER_EXIT) {
+                cancelStylusHover()
+            } else if (handleStylusHover(event)) {
+                return true
+            }
+        }
         if (isPointerLocked || controller.isZoomModeOn) return true
         when (action) {
             MotionEvent.ACTION_HOVER_ENTER, MotionEvent.ACTION_HOVER_MOVE -> {
@@ -977,12 +1023,73 @@ class ScreenInput(
         return true
     }
 
-    private fun beginStylusScroll(id: Int, location: Offset) {
-        if (!controller.isControlling || !view.surface.imageRect.contains(location)) return
+    private fun beginStylusScroll(id: Int, location: Offset, alreadyScrolling: Boolean = false) {
+        if (!allowsStylusButtonInput || !view.surface.imageRect.contains(location)) {
+            claimedTouches.add(id)
+            return
+        }
         controller.stopScrollMomentum()
         controller.movePointer(view.surface.imagePoint(location))
         stylusScroll = ScrollStream(usesPhases = controller.sendsGesturesToMac)
-        stylusButtonGesture.begin(id, location.x, location.y)
+        stylusButtonGesture.begin(id, location.x, location.y, alreadyScrolling)
+    }
+
+    private val allowsStylusButtonInput: Boolean
+        get() = AppSettings.stylusButtonScrolls && controller.isControlling && view.hasWindowFocus() &&
+            !controller.isToolbarVisible && !controller.isZoomModeOn && !drag.isDragging && !isPointerLocked && !detached
+
+    private fun scrollStylus(stream: ScrollStream, delta: StylusButtonGesture.Delta) {
+        val gain = AppSettings.stylusScrollSpeed.coerceIn(0.25f, 4f) * if (AppSettings.stylusScrollReversed) -1f else 1f
+        scroll(stream, Offset(delta.x, delta.y) * gain)
+    }
+
+    private fun handleStylusHover(event: MotionEvent): Boolean {
+        val location = point(event, 0)
+        val change = stylusHoverGesture.update(
+            event.getPointerId(0),
+            location.x,
+            location.y,
+            pressed = event.buttonState and MotionEvent.BUTTON_STYLUS_PRIMARY != 0,
+            eligible = allowsStylusButtonInput && AppSettings.stylusHoverScrolls && stylusTouches.isEmpty() &&
+                controller.pointerButtons.isEmpty && nativeTouches.isEmpty() && fingers.isEmpty() &&
+                view.surface.imageRect.contains(location),
+        )
+        if (change.began) {
+            view.takeKeyFocus()
+            controller.stopScrollMomentum()
+            controller.movePointer(view.surface.imagePoint(location))
+            stylusHoverScroll = ScrollStream(usesPhases = controller.sendsGesturesToMac)
+        }
+        change.delta?.let { scrollStylus(stylusHoverScroll, it) }
+        if (change.ended) endScroll(stylusHoverScroll, Offset.Zero, change.cancelled)
+        if (change.rightClick) controller.click(PointerButtons.Secondary)
+        return stylusHoverGesture.isActive || change.ended
+    }
+
+    private fun cancelStylusHover() {
+        stylusHoverGesture.blockUntilRelease()
+        endScroll(stylusHoverScroll, Offset.Zero, cancelled = true)
+    }
+
+    private fun cancelStylusContact(id: Int) {
+        stylusButtonGesture.cancel()
+        endScroll(stylusScroll, Offset.Zero, cancelled = true)
+        // Consume the rest of this contact, avoiding an accidental left drag after releasing the button.
+        claimedTouches.add(id)
+    }
+
+    fun cancelStylusInput() {
+        cancelStylusHover()
+        stylusButtonGesture.cancel()
+        endScroll(stylusScroll, Offset.Zero, cancelled = true)
+        for (id in stylusTouches) {
+            if (pointerTouches.remove(id) && pointerTouches.isEmpty()) controller.setPressedButtons(PointerButtons.None)
+            nativeTouches.remove(id)?.let { nativeID ->
+                controller.sendTouches(listOf(RemoteTouch(nativeID, TouchPhase.Cancelled, controller.pointerPosition)))
+            }
+            claimedTouches.add(id)
+        }
+        stylusTouches.clear()
     }
 
     private fun pointerBegan(event: MotionEvent, index: Int) {

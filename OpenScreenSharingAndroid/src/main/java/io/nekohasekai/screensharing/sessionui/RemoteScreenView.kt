@@ -275,6 +275,7 @@ class RemoteScreenView(context: Context, val controller: SessionController) : Fr
         super.onWindowFocusChanged(hasWindowFocus)
         keyInput.onWindowFocusChanged(hasWindowFocus)
         if (!hasWindowFocus) {
+            input.cancelStylusInput()
             controller.releaseHeldKeys()
         }
     }
