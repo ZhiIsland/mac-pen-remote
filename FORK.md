@@ -13,9 +13,15 @@ An independent Android fork of [Open Screen Sharing](https://github.com/nekohase
 - A movement threshold prevents hand jitter from turning a right click into scrolling. Cancellation never generates a right click.
 - Settings → Control → S Pen side-button scrolling restores the original right-button drag behavior when disabled.
 - Settings → Control also offers pen scrolling at 0.5×, 1× or 2× speed and an optional reversed direction, applying to both hover and tip scrolling.
+- Tip scrolling uses normalized pressure for a smoothed speed adjustment. Hover scrolling accelerates with movement speed. Both have optional direction locking to reduce sideways drift.
+- A 2.5× local magnifier appears after a 350 ms hover pause without the side button and follows slow movements. It uses the existing GPU picture rather than downloading extra frames.
+- Optional palm protection cancels existing finger gestures and rejects new fingers while the pen is hovering or touching, plus 150 ms after leaving. It can be disabled for mixed finger/pen input.
+- A stationary 650 ms hover button hold opens a quick menu by default. Hold and double-click can be mapped to the menu, keyboard, toolbar, Mission Control or Show Desktop. Double-click is off by default to retain instant single right-clicks; enabling it adds a 300 ms single-click delay.
+- Settings → Control → Test pen sensors provides a local test grid for pressure, tilt, orientation, distance and side-button events. It sends no input to the Mac and keeps samples only in memory. Advertised tilt/distance axes are not automatically treated as usable controls.
+- Window loss, detach and session replacement cancel queued pen actions, preventing old holds or clicks from affecting a later connection.
 - If Samsung intercepts the side button, disable **Open Air command with Pen button** in the device's S Pen settings. The exact name varies by One UI version.
 
-These controls work through ordinary VNC and Apple VNC. They do not add pressure or tilt support. Real S Pen hardware validation is still required.
+These controls work through ordinary VNC and Apple VNC. Pressure changes scrolling locally; pressure and tilt are not forwarded as drawing tablet input to the Mac. Real S Pen hardware validation is still required. See [Chinese controls and validation notes](docs/s-pen-controls.md).
 
 **Galaxy S25 Ultra:** Samsung removed Bluetooth/BLE and Air Actions from its S Pen. This fork uses Android's near-screen stylus hover/button events; it cannot receive distant button presses or motion gestures. See [Samsung's S25 Ultra S Pen guidance](https://www.samsung.com/us/support/answer/ANS10004602/). Actual hover-button delivery depends on One UI and its Air Command settings; test on the phone before relying on it.
 

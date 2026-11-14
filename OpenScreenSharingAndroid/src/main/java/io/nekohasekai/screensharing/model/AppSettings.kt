@@ -20,6 +20,20 @@ object AppSettings {
 
     var stylusScrollReversed: Boolean by Persisted("stylusScrollReversed", serializer<Boolean>(), false)
 
+    var stylusPressureScrolls: Boolean by Persisted("stylusPressureScrolls", serializer<Boolean>(), true)
+
+    var stylusHoverAccelerates: Boolean by Persisted("stylusHoverAccelerates", serializer<Boolean>(), true)
+
+    var stylusScrollLocksAxis: Boolean by Persisted("stylusScrollLocksAxis", serializer<Boolean>(), true)
+
+    var stylusShowsLoupe: Boolean by Persisted("stylusShowsLoupe", serializer<Boolean>(), true)
+
+    var stylusRejectsPalm: Boolean by Persisted("stylusRejectsPalm", serializer<Boolean>(), true)
+
+    var stylusLongPressAction: PenShortcutAction by Persisted("stylusLongPressAction", serializer<PenShortcutAction>(), PenShortcutAction.QuickMenu)
+
+    var stylusDoubleClickAction: PenShortcutAction by Persisted("stylusDoubleClickAction", serializer<PenShortcutAction>(), PenShortcutAction.None)
+
     var showsDebugInfo: Boolean by Persisted("showsDebugInfo", serializer<Boolean>(), false)
 
     var cursorStyle: CursorStyle by Persisted("cursorStyle", serializer<CursorStyle>(), CursorStyle.System)
@@ -44,6 +58,16 @@ object AppSettings {
             PreferenceStore.set(name, value, serializer)
         }
     }
+}
+
+@Serializable
+enum class PenShortcutAction {
+    None,
+    QuickMenu,
+    Keyboard,
+    Toolbar,
+    MissionControl,
+    ShowDesktop,
 }
 
 @Serializable

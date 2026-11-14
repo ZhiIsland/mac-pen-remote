@@ -3,6 +3,7 @@ package io.nekohasekai.screensharing.sessionui
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.HapticFeedbackConstants
 import android.view.InputDevice
 import android.view.MotionEvent
@@ -16,6 +17,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.core.view.ViewConfigurationCompat
 import io.nekohasekai.screensharing.model.AppSettings
 import io.nekohasekai.screensharing.model.CursorStyle
+import io.nekohasekai.screensharing.model.PenShortcutAction
 import io.nekohasekai.screensharing.session.CursorShape
 import io.nekohasekai.screensharing.session.CursorThemeStore
 import io.nekohasekai.screensharing.session.GesturePhase
@@ -23,6 +25,7 @@ import io.nekohasekai.screensharing.session.PointerButtons
 import io.nekohasekai.screensharing.session.RemoteTouch
 import io.nekohasekai.screensharing.session.ScaleMode
 import io.nekohasekai.screensharing.session.SessionController
+import io.nekohasekai.screensharing.session.SystemCommand
 import io.nekohasekai.screensharing.session.TouchPhase
 import kotlin.math.PI
 import kotlin.math.abs
@@ -106,8 +109,22 @@ class ScreenInput(
     private val stylusHoverGesture = StylusHoverGesture(touchSlop)
     private var stylusHoverScroll = ScrollStream()
     private val stylusTouches = HashSet<Int>()
+    private val stylusPalmGuard = StylusPalmGuard()
+    private val stylusScrollDynamics = StylusScrollDynamics()
+    private val stylusHoverDynamics = StylusScrollDynamics()
+    private val stylusTapSequence = StylusTapSequence(300L, touchSlop * 2)
     private val spanSlop = touchSlop * 2
     private val handler = Handler(Looper.getMainLooper())
+    private val penQuickMenu = PenQuickMenu(view, controller)
+    private var stylusHoldTask: Runnable? = null
+    private var stylusClickTask: Runnable? = null
+    private var stylusLoupeTask: Runnable? = null
+    private var stylusLoupeAnchor: Offset? = null
+    private var stylusHoverLocation: Offset? = null
+    private var stylusLoupeLastTime: Long? = null
+    private var stylusButtonAnchor = Offset.Zero
+    private var stylusSessionRun: Int? = controller.presentationRun
+    private var stylusWasControlling = controller.isControlling
     private val drag = ScreenDrag(view, controller, this)
     val drop = ScreenDrop(view, controller, drag)
     private val pressIndicator = PressIndicatorView(view.context)
@@ -219,6 +236,7 @@ class ScreenInput(
     fun detach() {
         detached = true
         cancelStylusInput()
+        penQuickMenu.dismiss()
         observedTree?.takeIf { it.isAlive }?.removeOnWindowFocusChangeListener(windowFocusListener)
         observedTree = null
         PointerLock.removeReceiver(pointerLockReceiver)
@@ -249,6 +267,10 @@ class ScreenInput(
     }
 
     fun onTouchEvent(event: MotionEvent): Boolean {
+        sessionStateDidChange()
+        for (index in 0 until event.pointerCount) {
+            if (isStylus(event, index)) PenInputTelemetry.record(event, index, force = event.actionMasked != MotionEvent.ACTION_MOVE)
+        }
         if (Build.VERSION.SDK_INT >= 34) {
             when (event.classification) {
                 MotionEvent.CLASSIFICATION_TWO_FINGER_SWIPE -> {
@@ -298,12 +320,20 @@ class ScreenInput(
 
     private fun touchesBegan(event: MotionEvent, index: Int) {
         val continuesHoverScroll = if (isStylus(event, index)) {
+            cancelStylusShortcuts()
+            cancelStylusLoupe()
+            stylusPalmGuard.contact(event.getPointerId(index), down = true, event.eventTime)
+            if (AppSettings.stylusRejectsPalm) rejectExistingFingerInput()
             stylusTouches.add(event.getPointerId(index))
             val continuesScroll = stylusHoverGesture.beginContact(event.buttonState and MotionEvent.BUTTON_STYLUS_PRIMARY != 0)
             endScroll(stylusHoverScroll, Offset.Zero, cancelled = true)
             continuesScroll
         } else {
             false
+        }
+        if (isScreenFinger(event, index) && AppSettings.stylusRejectsPalm && stylusPalmGuard.rejectsFinger(event.eventTime)) {
+            claimedTouches.add(event.getPointerId(index))
+            return
         }
         if (drag.isDragging) return
         controller.stopScrollMomentum()
@@ -334,6 +364,7 @@ class ScreenInput(
     }
 
     private fun touchesMoved(event: MotionEvent) {
+        if (AppSettings.stylusRejectsPalm && stylusPalmGuard.rejectsFinger(event.eventTime)) rejectExistingFingerInput()
         // Some digitizers report button changes only in ACTION_MOVE.
         for (index in 0 until event.pointerCount) {
             val id = event.getPointerId(index)
@@ -363,7 +394,7 @@ class ScreenInput(
                     cancelStylusContact(id)
                 } else {
                     val location = point(event, index)
-                    stylusButtonGesture.move(id, location.x, location.y)?.let { scrollStylus(stylusScroll, it) }
+                    stylusButtonGesture.move(id, location.x, location.y)?.let { scrollStylus(stylusScroll, it, event, index) }
                 }
                 continue
             }
@@ -380,6 +411,7 @@ class ScreenInput(
 
     private fun touchesEnded(event: MotionEvent, index: Int, cancelled: Boolean) {
         val id = event.getPointerId(index)
+        if (isStylus(event, index)) stylusPalmGuard.contact(id, down = false, event.eventTime)
         stylusTouches.remove(id)
         val location = point(event, index)
         val time = event.eventTime
@@ -387,7 +419,7 @@ class ScreenInput(
             val cancel = cancelled || !allowsStylusButtonInput
             // Some devices coalesce the final motion into ACTION_UP.
             if (!cancel) {
-                stylusButtonGesture.move(id, location.x, location.y)?.let { scrollStylus(stylusScroll, it) }
+                stylusButtonGesture.move(id, location.x, location.y)?.let { scrollStylus(stylusScroll, it, event, index) }
             }
             val rightClick = stylusButtonGesture.finish(id, cancel)
             endScroll(stylusScroll, Offset.Zero, cancel)
@@ -948,6 +980,8 @@ class ScreenInput(
     private fun padPoints(event: MotionEvent, gesture: PadGesture): List<Offset> = gesture.pointers.mapNotNull { id -> event.findPointerIndex(id).takeIf { it >= 0 }?.let { point(event, it) } }
 
     fun onGenericMotionEvent(event: MotionEvent): Boolean {
+        sessionStateDidChange()
+        if (isStylus(event, 0)) PenInputTelemetry.record(event, force = true)
         when (event.actionMasked) {
             MotionEvent.ACTION_SCROLL -> {
                 if (!event.isFromSource(InputDevice.SOURCE_CLASS_POINTER)) return false
@@ -999,16 +1033,24 @@ class ScreenInput(
     }
 
     fun onHoverEvent(event: MotionEvent): Boolean {
+        sessionStateDidChange()
         val location = point(event, 0)
         val action = event.actionMasked
         if (action == MotionEvent.ACTION_HOVER_ENTER || action == MotionEvent.ACTION_HOVER_MOVE) {
             trackSystemPointer(location, fromPointer = !isStylus(event, 0))
         }
         if (isStylus(event, 0)) {
+            PenInputTelemetry.record(event, force = action != MotionEvent.ACTION_HOVER_MOVE)
             if (action == MotionEvent.ACTION_HOVER_EXIT) {
+                stylusPalmGuard.hover(near = false, event.eventTime)
+                cancelStylusLoupe()
+                cancelStylusShortcuts()
                 cancelStylusHover()
-            } else if (handleStylusHover(event)) {
-                return true
+            } else {
+                stylusPalmGuard.hover(near = true, event.eventTime)
+                if (AppSettings.stylusRejectsPalm) rejectExistingFingerInput()
+                updateStylusLoupe(location, event.buttonState and MotionEvent.BUTTON_STYLUS_PRIMARY != 0, event.eventTime)
+                if (handleStylusHover(event)) return true
             }
         }
         if (isPointerLocked || controller.isZoomModeOn) return true
@@ -1031,6 +1073,7 @@ class ScreenInput(
         controller.stopScrollMomentum()
         controller.movePointer(view.surface.imagePoint(location))
         stylusScroll = ScrollStream(usesPhases = controller.sendsGesturesToMac)
+        stylusScrollDynamics.reset()
         stylusButtonGesture.begin(id, location.x, location.y, alreadyScrolling)
     }
 
@@ -1038,9 +1081,24 @@ class ScreenInput(
         get() = AppSettings.stylusButtonScrolls && controller.isControlling && view.hasWindowFocus() &&
             !controller.isToolbarVisible && !controller.isZoomModeOn && !drag.isDragging && !isPointerLocked && !detached
 
-    private fun scrollStylus(stream: ScrollStream, delta: StylusButtonGesture.Delta) {
+    private fun scrollStylus(stream: ScrollStream, delta: StylusButtonGesture.Delta, event: MotionEvent, index: Int = 0, hover: Boolean = false) {
+        val range = event.device?.getMotionRange(MotionEvent.AXIS_PRESSURE, event.source)
+        val pressure = if (!hover && AppSettings.stylusPressureScrolls && range != null) {
+            StylusScrollDynamics.normalizePressure(event.getPressure(index), range.min, range.max)
+        } else {
+            null
+        }
+        val adjusted = (if (hover) stylusHoverDynamics else stylusScrollDynamics).apply(
+            delta.x,
+            delta.y,
+            event.eventTime,
+            density,
+            pressure,
+            acceleratesHover = hover && AppSettings.stylusHoverAccelerates,
+            locksAxis = AppSettings.stylusScrollLocksAxis,
+        )
         val gain = AppSettings.stylusScrollSpeed.coerceIn(0.25f, 4f) * if (AppSettings.stylusScrollReversed) -1f else 1f
-        scroll(stream, Offset(delta.x, delta.y) * gain)
+        scroll(stream, Offset(adjusted.x, adjusted.y) * gain)
     }
 
     private fun handleStylusHover(event: MotionEvent): Boolean {
@@ -1055,18 +1113,30 @@ class ScreenInput(
                 view.surface.imageRect.contains(location),
         )
         if (change.began) {
+            cancelStylusLoupe()
             view.takeKeyFocus()
             controller.stopScrollMomentum()
             controller.movePointer(view.surface.imagePoint(location))
             stylusHoverScroll = ScrollStream(usesPhases = controller.sendsGesturesToMac)
+            stylusHoverDynamics.reset()
+            stylusButtonAnchor = location
+            scheduleStylusHold()
         }
-        change.delta?.let { scrollStylus(stylusHoverScroll, it) }
-        if (change.ended) endScroll(stylusHoverScroll, Offset.Zero, change.cancelled)
-        if (change.rightClick) controller.click(PointerButtons.Secondary)
+        change.delta?.let {
+            cancelStylusShortcuts()
+            scrollStylus(stylusHoverScroll, it, event, hover = true)
+        }
+        if (change.ended) {
+            cancelStylusHold()
+            endScroll(stylusHoverScroll, Offset.Zero, change.cancelled)
+        }
+        if (change.cancelled) cancelStylusShortcuts()
+        if (change.rightClick) stylusHoverClicked(stylusButtonAnchor, event.eventTime)
         return stylusHoverGesture.isActive || change.ended
     }
 
     private fun cancelStylusHover() {
+        cancelStylusHold()
         stylusHoverGesture.blockUntilRelease()
         endScroll(stylusHoverScroll, Offset.Zero, cancelled = true)
     }
@@ -1079,6 +1149,9 @@ class ScreenInput(
     }
 
     fun cancelStylusInput() {
+        cancelStylusShortcuts()
+        cancelStylusLoupe()
+        stylusPalmGuard.reset()
         cancelStylusHover()
         stylusButtonGesture.cancel()
         endScroll(stylusScroll, Offset.Zero, cancelled = true)
@@ -1090,6 +1163,162 @@ class ScreenInput(
             claimedTouches.add(id)
         }
         stylusTouches.clear()
+    }
+
+    fun sessionStateDidChange() {
+        val run = controller.presentationRun
+        val controls = controller.isControlling
+        if (run != stylusSessionRun || (stylusWasControlling && !controls)) {
+            cancelStylusInput()
+            penQuickMenu.dismiss()
+        }
+        stylusSessionRun = run
+        stylusWasControlling = controls
+    }
+
+    private fun isScreenFinger(event: MotionEvent, index: Int): Boolean = event.getToolType(index) == MotionEvent.TOOL_TYPE_FINGER && !event.isFromSource(InputDevice.SOURCE_MOUSE)
+
+    private fun rejectExistingFingerInput() {
+        if (drag.isDragging) return
+        val ids = (fingers + nativeTouches.keys + zoomTouches.keys).filter { it !in stylusTouches }.toSet()
+        if (ids.isEmpty()) return
+        finger?.let { end(it, null) }
+        when (val gesture = twoFinger) {
+            null -> Unit
+            else -> when (gesture.state) {
+                TwoFinger.State.Pan -> handleTwoFingerPan(GesturePhase.Cancelled, Offset.Zero, Offset.Zero)
+                TwoFinger.State.Transform -> {
+                    if (gesture.pinches) handlePinch(GesturePhase.Cancelled, 1f, Offset.Zero, 0)
+                    if (gesture.rotates) handleRotation(GesturePhase.Cancelled, 0f)
+                }
+                else -> Unit
+            }
+        }
+        twoFinger = null
+        val cancelled = ids.mapNotNull { id ->
+            nativeTouches.remove(id)?.let { RemoteTouch(it, TouchPhase.Cancelled, view.surface.imagePoint(locations[id] ?: Offset.Zero)) }
+        }
+        controller.sendTouches(cancelled)
+        ids.forEach { zoomTouches.remove(it) }
+        fingers.removeAll(ids)
+        claimedTouches.addAll(ids)
+    }
+
+    private fun scheduleStylusHold() {
+        cancelStylusHold()
+        if (AppSettings.stylusLongPressAction == PenShortcutAction.None) return
+        val run = controller.presentationRun
+        val task = Runnable {
+            stylusHoldTask = null
+            if (!stylusHoverGesture.isActive || !allowsStylusButtonInput || controller.presentationRun != run) return@Runnable
+            val action = AppSettings.stylusLongPressAction
+            if (action == PenShortcutAction.None) return@Runnable
+            cancelStylusShortcuts()
+            cancelStylusHover()
+            performPenShortcut(action, stylusButtonAnchor)
+            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        }
+        stylusHoldTask = task
+        handler.postDelayed(task, 650L)
+    }
+
+    private fun cancelStylusHold() {
+        stylusHoldTask?.let { handler.removeCallbacks(it) }
+        stylusHoldTask = null
+    }
+
+    private fun stylusHoverClicked(location: Offset, time: Long) {
+        stylusClickTask?.let { handler.removeCallbacks(it) }
+        stylusClickTask = null
+        val result = stylusTapSequence.tap(location.x, location.y, time, AppSettings.stylusDoubleClickAction != PenShortcutAction.None)
+        result.single?.let { clickStylusAt(Offset(it.x, it.y)) }
+        if (result.double) performPenShortcut(AppSettings.stylusDoubleClickAction, location)
+        if (result.waits) {
+            val run = controller.presentationRun
+            val task = Runnable {
+                stylusClickTask = null
+                if (controller.presentationRun != run) {
+                    stylusTapSequence.cancel()
+                    return@Runnable
+                }
+                stylusTapSequence.timeout(SystemClock.uptimeMillis())?.let { clickStylusAt(Offset(it.x, it.y)) }
+            }
+            stylusClickTask = task
+            handler.postDelayed(task, 300L)
+        }
+    }
+
+    private fun clickStylusAt(location: Offset) {
+        if (!allowsStylusButtonInput || !controller.pointerButtons.isEmpty || stylusTouches.isNotEmpty()) return
+        controller.movePointer(view.surface.imagePoint(location))
+        controller.click(PointerButtons.Secondary)
+    }
+
+    private fun cancelStylusShortcuts() {
+        cancelStylusHold()
+        stylusClickTask?.let { handler.removeCallbacks(it) }
+        stylusClickTask = null
+        stylusTapSequence.cancel()
+    }
+
+    private fun performPenShortcut(action: PenShortcutAction, location: Offset) {
+        if (!allowsStylusButtonInput) return
+        cancelStylusLoupe()
+        when (action) {
+            PenShortcutAction.None -> Unit
+            PenShortcutAction.QuickMenu -> penQuickMenu.show(location)
+            PenShortcutAction.Keyboard -> controller.toggleKeyboard()
+            PenShortcutAction.Toolbar -> controller.toggleToolbar()
+            PenShortcutAction.MissionControl -> if (controller.canPerform(SystemCommand.MissionControl)) controller.perform(SystemCommand.MissionControl)
+            PenShortcutAction.ShowDesktop -> if (controller.canPerform(SystemCommand.ShowDesktop)) controller.perform(SystemCommand.ShowDesktop)
+        }
+    }
+
+    private fun updateStylusLoupe(location: Offset, pressed: Boolean, time: Long) {
+        if (!AppSettings.stylusShowsLoupe || pressed || !controller.isControlling || controller.isToolbarVisible || controller.isZoomModeOn ||
+            !view.hasWindowFocus() || !view.surface.imageRect.contains(location) || stylusTouches.isNotEmpty() || detached
+        ) {
+            cancelStylusLoupe()
+            return
+        }
+        val previous = stylusHoverLocation
+        val elapsed = stylusLoupeLastTime?.let { (time - it).coerceAtLeast(1) } ?: 16L
+        val speed = previous?.let { (location - it).getDistance() * 1000f / elapsed / density } ?: 0f
+        stylusHoverLocation = location
+        stylusLoupeLastTime = time
+        if (view.stylusLoupePoint != null) {
+            if (speed <= 350f) {
+                stylusLoupeAnchor = location
+                view.stylusLoupePoint = location
+                return
+            }
+            cancelStylusLoupe()
+            stylusHoverLocation = location
+            stylusLoupeLastTime = time
+        }
+        if (stylusLoupeTask != null && (location - (stylusLoupeAnchor ?: location)).getDistance() <= touchSlop) return
+        stylusLoupeTask?.let { handler.removeCallbacks(it) }
+        stylusLoupeAnchor = location
+        val run = controller.presentationRun
+        val task = Runnable {
+            stylusLoupeTask = null
+            if (view.hasWindowFocus() && !detached && controller.isControlling && controller.presentationRun == run &&
+                AppSettings.stylusShowsLoupe && !controller.isToolbarVisible && !controller.isZoomModeOn
+            ) {
+                view.stylusLoupePoint = stylusHoverLocation
+            }
+        }
+        stylusLoupeTask = task
+        handler.postDelayed(task, 350L)
+    }
+
+    private fun cancelStylusLoupe() {
+        stylusLoupeTask?.let { handler.removeCallbacks(it) }
+        stylusLoupeTask = null
+        stylusLoupeAnchor = null
+        stylusHoverLocation = null
+        stylusLoupeLastTime = null
+        view.stylusLoupePoint = null
     }
 
     private fun pointerBegan(event: MotionEvent, index: Int) {

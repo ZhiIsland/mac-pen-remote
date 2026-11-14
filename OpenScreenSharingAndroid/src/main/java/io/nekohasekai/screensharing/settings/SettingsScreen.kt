@@ -60,6 +60,7 @@ import io.nekohasekai.screensharing.model.KeyMapping
 import io.nekohasekai.screensharing.model.KeyShortcut
 import io.nekohasekai.screensharing.model.KeyShortcuts
 import io.nekohasekai.screensharing.model.MappingTarget
+import io.nekohasekai.screensharing.model.PenShortcutAction
 import io.nekohasekai.screensharing.model.QuickInput
 import io.nekohasekai.screensharing.model.QuickInputs
 import io.nekohasekai.screensharing.model.ShortcutGroup
@@ -199,7 +200,11 @@ fun NavGraphBuilder.settingsDestinations(navController: NavController) {
         popEnterTransition = slideInFromLeft,
         popExitTransition = slideOutToRight,
     ) {
-        ControlSettingsView(back) { navController.navigate("settings/control/cursor_style") }
+        ControlSettingsView(
+            back,
+            onOpenCursorStyle = { navController.navigate("settings/control/cursor_style") },
+            onPenDiagnostics = { navController.navigate("settings/control/pen_diagnostics") },
+        )
     }
     composable(
         "settings/control/cursor_style",
@@ -210,6 +215,7 @@ fun NavGraphBuilder.settingsDestinations(navController: NavController) {
     ) {
         CursorStyleView(back)
     }
+    composable("settings/control/pen_diagnostics") { PenDiagnosticsScreen(back) }
 }
 
 @Composable
@@ -272,7 +278,7 @@ private fun PictureSettingsView(navigationIcon: @Composable () -> Unit) {
 }
 
 @Composable
-private fun ControlSettingsView(navigationIcon: @Composable () -> Unit, onOpenCursorStyle: () -> Unit) {
+private fun ControlSettingsView(navigationIcon: @Composable () -> Unit, onOpenCursorStyle: () -> Unit, onPenDiagnostics: () -> Unit) {
     PageScaffold(title = stringResource(R.string.settings_control), navigationIcon = navigationIcon) {
         SectionHeader(stringResource(R.string.settings_customization))
         val styleName = when (val style = AppSettings.cursorStyle) {
@@ -312,7 +318,14 @@ private fun ControlSettingsView(navigationIcon: @Composable () -> Unit, onOpenCu
                 onCheckedChange = { AppSettings.stylusHoverScrolls = it },
                 icon = Icons.Outlined.Mouse,
             )
+        }
+        SectionFooter(stringResource(R.string.pen_side_button_help))
+        SectionHeader(stringResource(R.string.pen_scroll_tuning))
+        ListGroup {
             PenScrollSpeedRow()
+            SwitchRow(stringResource(R.string.pen_pressure_scroll), AppSettings.stylusPressureScrolls, { AppSettings.stylusPressureScrolls = it })
+            SwitchRow(stringResource(R.string.pen_hover_acceleration), AppSettings.stylusHoverAccelerates, { AppSettings.stylusHoverAccelerates = it })
+            SwitchRow(stringResource(R.string.pen_axis_lock), AppSettings.stylusScrollLocksAxis, { AppSettings.stylusScrollLocksAxis = it })
             SwitchRow(
                 stringResource(R.string.pen_reverse_scroll),
                 AppSettings.stylusScrollReversed,
@@ -320,8 +333,50 @@ private fun ControlSettingsView(navigationIcon: @Composable () -> Unit, onOpenCu
                 icon = Icons.Outlined.Tune,
             )
         }
-        SectionFooter(stringResource(R.string.pen_side_button_help))
+        SectionFooter(stringResource(R.string.pen_pressure_help))
+        SectionHeader(stringResource(R.string.pen_helpers))
+        ListGroup {
+            SwitchRow(stringResource(R.string.pen_hover_loupe), AppSettings.stylusShowsLoupe, { AppSettings.stylusShowsLoupe = it })
+            SwitchRow(stringResource(R.string.pen_palm_rejection), AppSettings.stylusRejectsPalm, { AppSettings.stylusRejectsPalm = it })
+        }
+        SectionFooter(stringResource(R.string.pen_helpers_help))
+        SectionHeader(stringResource(R.string.pen_shortcuts))
+        ListGroup {
+            PenShortcutRow(stringResource(R.string.pen_long_press), AppSettings.stylusLongPressAction) { AppSettings.stylusLongPressAction = it }
+            PenShortcutRow(stringResource(R.string.pen_double_click), AppSettings.stylusDoubleClickAction) { AppSettings.stylusDoubleClickAction = it }
+        }
+        SectionFooter(stringResource(R.string.pen_shortcuts_help))
+        ListGroup { SettingsLink(Icons.Outlined.Tune, stringResource(R.string.pen_diagnostics), onPenDiagnostics) }
         SectionFooter(stringResource(R.string.pen_s25_help))
+    }
+}
+
+@Composable
+private fun PenShortcutRow(title: String, selected: PenShortcutAction, onSelect: (PenShortcutAction) -> Unit) {
+    var isPicking by remember { mutableStateOf(false) }
+    val choices = PenShortcutAction.entries.map { action ->
+        action to stringResource(
+            when (action) {
+                PenShortcutAction.None -> R.string.pen_action_none
+                PenShortcutAction.QuickMenu -> R.string.pen_action_quick_menu
+                PenShortcutAction.Keyboard -> R.string.pen_action_keyboard
+                PenShortcutAction.Toolbar -> R.string.pen_action_toolbar
+                PenShortcutAction.MissionControl -> R.string.pen_action_mission_control
+                PenShortcutAction.ShowDesktop -> R.string.pen_action_show_desktop
+            },
+        )
+    }
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = { Text(choices.first { it.first == selected }.second) },
+        colors = groupItemColors(),
+        modifier = Modifier.clickable { isPicking = true },
+    )
+    if (isPicking) {
+        ChoiceDialog(title, choices, selected, onSelect = {
+            onSelect(it)
+            isPicking = false
+        }, onDismiss = { isPicking = false })
     }
 }
 

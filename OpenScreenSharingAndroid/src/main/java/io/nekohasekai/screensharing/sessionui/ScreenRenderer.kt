@@ -40,7 +40,13 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-data class LoupeSpot(val source: Rect, val frame: Rect)
+data class LoupeSpot(val source: Rect, val frame: Rect) {
+    val magnification: Float get() = frame.width / source.width
+
+    fun map(point: Offset): Offset = Offset(frame.left + (point.x - source.left) * magnification, frame.top + (point.y - source.top) * magnification)
+
+    fun map(rect: Rect): Rect = Rect(map(rect.topLeft), map(rect.bottomRight))
+}
 
 class DrawnCursor(val shape: CursorShape, val shownBySystem: Boolean)
 
@@ -327,18 +333,16 @@ class ScreenRenderer(
         GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
         GLES30.glBindVertexArray(resources.vertexArray)
         resources.picture.setConversion(content.transfer, content.primaries, output.transfer, output.primaries)
-        val pictureSampler = sampler(resources, frame.pixelsPerImagePixel)
-
-        fun drawContent(dx: Float, dy: Float, drawsCursor: Boolean) {
+        fun drawContent(drawsCursor: Boolean, loupe: LoupeSpot? = null) {
             GLES30.glDisable(GLES30.GL_BLEND)
             GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
-            GLES30.glBindSampler(0, pictureSampler)
+            GLES30.glBindSampler(0, sampler(resources, frame.pixelsPerImagePixel * (loupe?.magnification ?: 1f)))
             for (image in images) {
                 GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, image.texture)
-                resources.picture.draw(Gl.ndc(image.rect.translate(dx, dy), frame.viewSize), image.textureRect)
+                resources.picture.draw(Gl.ndc(loupe?.map(image.rect) ?: image.rect, frame.viewSize), image.textureRect)
             }
             if (!drawsCursor || cursor == null || cursorRect == null || cursorTexture == 0) return
-            val rect = Gl.ndc(cursorRect.translate(dx, dy), frame.viewSize)
+            val rect = Gl.ndc(loupe?.map(cursorRect) ?: cursorRect, frame.viewSize)
             GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
             GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, cursorTexture)
             GLES30.glBindSampler(0, cursorSampler)
@@ -361,7 +365,7 @@ class ScreenRenderer(
             }
         }
 
-        drawContent(0f, 0f, drawsCursor = !frame.cursorShownBySystem)
+        drawContent(drawsCursor = !frame.cursorShownBySystem)
         frame.loupe?.let { loupe ->
             val scale = windowWidth / frame.viewSize.width
             GLES30.glEnable(GLES30.GL_SCISSOR_TEST)
@@ -373,7 +377,7 @@ class ScreenRenderer(
             )
             GLES30.glDisable(GLES30.GL_BLEND)
             resources.black.draw(Gl.ndc(loupe.frame, frame.viewSize))
-            drawContent(loupe.frame.left - loupe.source.left, loupe.frame.top - loupe.source.top, drawsCursor = true)
+            drawContent(drawsCursor = true, loupe = loupe)
             GLES30.glDisable(GLES30.GL_SCISSOR_TEST)
         }
         GLES30.glBindVertexArray(0)

@@ -21,6 +21,7 @@ import android.widget.FrameLayout
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
@@ -60,11 +61,20 @@ class RemoteScreenView(context: Context, val controller: SessionController) : Fr
         color = android.graphics.Color.argb(217, 255, 255, 255)
     }
     private var loupeFrame: Rect? = null
+    private var penLoupeSpot: LoupeSpot? = null
+    var stylusLoupePoint: Offset? = null
+        set(value) {
+            if (field == value) return
+            field = value
+            surface.setNeedsRender()
+            invalidate()
+        }
     private var lastInsets: WindowInsets? = null
     private val lastLocation = IntArray(2)
     private val location = IntArray(2)
     private var animatedImeBottom: Int? = null
     private val preDrawListener = ViewTreeObserver.OnPreDrawListener {
+        input.sessionStateDidChange()
         getLocationInWindow(location)
         if (rootWindowInsets != lastInsets || !location.contentEquals(lastLocation)) {
             geometryDidChange()
@@ -198,6 +208,20 @@ class RemoteScreenView(context: Context, val controller: SessionController) : Fr
 
     private fun loupe(icon: Rect?): LoupeSpot? {
         val bounds = bounds
+        penLoupeSpot = null
+        val penPoint = stylusLoupePoint
+        if (penPoint != null && AppSettings.stylusShowsLoupe && hasWindowFocus() && controller.isControlling &&
+            !controller.isToolbarVisible && !controller.isZoomModeOn
+        ) {
+            val available = (windowTracker.screenArea ?: bounds).intersect(bounds)
+            val area = available.copy(bottom = min(available.bottom, surface.keyboardTop ?: available.bottom))
+            val spot = StylusLoupeGeometry.spot(area, surface.imageRect, penPoint, density)
+            if (spot != null) {
+                penLoupeSpot = spot
+                setLoupeFrame(spot.frame)
+                return spot
+            }
+        }
         val spot = if (windowTracker.fillsScreen && icon != null && bounds.overlaps(icon)) windowTracker.obstructions.loupe(icon, bounds) else null
         if (spot == null) {
             setLoupeFrame(null)
@@ -224,6 +248,14 @@ class RemoteScreenView(context: Context, val controller: SessionController) : Fr
         val frame = loupeFrame ?: return
         val outset = loupePaint.strokeWidth / 2
         canvas.drawRect(frame.left - outset, frame.top - outset, frame.right + outset, frame.bottom + outset, loupePaint)
+        val point = stylusLoupePoint
+        val spot = penLoupeSpot
+        if (point != null && spot != null) {
+            val center = spot.map(point)
+            val radius = 6f * density
+            canvas.drawLine(center.x - radius, center.y, center.x + radius, center.y, loupePaint)
+            canvas.drawLine(center.x, center.y - radius, center.x, center.y + radius, loupePaint)
+        }
     }
 
     fun takeKeyFocus() {
