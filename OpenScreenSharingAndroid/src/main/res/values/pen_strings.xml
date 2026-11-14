@@ -1,0 +1,7 @@
+<!-- Fork additions currently ship in English and Chinese; other locales use English. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="pen_side_button_scroll">S Pen: side-button scrolling</string>
+    <string name="pen_side_button_help">Hold the pen side button and tap for a right-click, or drag to scroll. Without the button, tap and drag work normally. Turn this off for the original right-button drag. If Samsung opens Air Command, disable “Open Air command with Pen button” in S Pen settings.</string>
+    <string name="pen_media_fallback">High Performance could not display video. Reconnected using standard VNC. Check UDP forwarding on your gateway.</string>
+    <string name="pen_media_timeout">No High Performance picture arrived within 12 seconds. TCP may work while the separate UDP video path is blocked or forwarded incorrectly.</string>
+</resources>

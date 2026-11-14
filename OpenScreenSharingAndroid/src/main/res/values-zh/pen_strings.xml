@@ -1,0 +1,6 @@
+<resources>
+    <string name="pen_side_button_scroll">S Pen 侧键滚动</string>
+    <string name="pen_side_button_help">按住笔侧键，点按是右键，拖动是滚动；不按侧键时照常点按、拖动。关闭此项可恢复原来的右键拖动。如果三星弹出浮窗指令，请在 S Pen 设置中关闭“使用 S Pen 按钮打开浮窗指令”。</string>
+    <string name="pen_media_fallback">高性能模式无法显示画面，已使用普通 VNC 重新连接。请检查网关的 UDP 转发。</string>
+    <string name="pen_media_timeout">高性能模式等待 12 秒仍未收到画面。TCP 连通时，独立的 UDP 视频通道仍可能被阻断或转发不正确。</string>
+</resources>

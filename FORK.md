@@ -1,0 +1,31 @@
+# Mac Pen Remote
+
+An independent Android fork of [Open Screen Sharing](https://github.com/nekohasekai/open-screen-sharing), based on commit `1241a8337625869b912c898e72d9aa71a8301b27`. This fork is not affiliated with the upstream author or Edovia Screens. The original GPL-3.0-or-later license and attribution remain in [LICENSE](LICENSE).
+
+## Pen controls
+
+- Pen tip without the side button: normal left click and drag.
+- Hold the primary pen side button, then touch and lift: right click.
+- Hold the primary pen side button, then drag: vertical or horizontal scrolling, without opening a context menu.
+- A movement threshold prevents hand jitter from turning a right click into scrolling. Cancellation never generates a right click.
+- Settings → Control → S Pen side-button scrolling restores the original right-button drag behavior when disabled.
+- If Samsung intercepts the side button, disable **Open Air command with Pen button** in the device's S Pen settings. The exact name varies by One UI version.
+
+These controls work through ordinary VNC and Apple VNC. They do not add pressure or tilt support. Real S Pen hardware validation is still required.
+
+## High Performance recovery
+
+An authenticated connection now waits up to 12 seconds for its first displayed picture. This includes negotiation, incoming video, decoding and presentation. When it times out, or the media stream reports a network/silence failure, the Android client reconnects once using standard VNC and shows a notice. It keeps the saved High Performance preference, so a later session can try it again. A disconnected/replaced session cannot trigger an obsolete timeout. Background sessions wait until the app returns to the foreground before recovering.
+
+This is recovery, not UDP tunneling: it cannot make Apple's High Performance media cross an incompatible TCP-only forwarding gateway. See [network notes](docs/high-performance-forwarding.md).
+
+## Build and validate
+
+Requires the upstream Android toolchain (JDK 17 or later, Android SDK 37, Android NDK) and Go 1.26.8 or later.
+
+```sh
+make lib_android
+./gradlew :OpenScreenSharingAndroid:assembleDebug :OpenScreenSharingAndroid:testDebugUnitTest :OpenScreenSharingAndroid:lintDebug
+```
+
+The app installs as `io.github.zhiisland.macpenremote`, with the name **Mac Pen Remote** and a distinct icon. It can coexist with the original app. Debug APKs are test builds, not production-signed releases. Source and corresponding APKs should be distributed together under the upstream license.

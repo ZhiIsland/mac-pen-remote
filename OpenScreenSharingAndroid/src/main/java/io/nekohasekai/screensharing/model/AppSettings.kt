@@ -12,6 +12,8 @@ import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
 
 object AppSettings {
+    var stylusButtonScrolls: Boolean by Persisted("stylusButtonScrolls", serializer<Boolean>(), true)
+
     var showsDebugInfo: Boolean by Persisted("showsDebugInfo", serializer<Boolean>(), false)
 
     var cursorStyle: CursorStyle by Persisted("cursorStyle", serializer<CursorStyle>(), CursorStyle.System)

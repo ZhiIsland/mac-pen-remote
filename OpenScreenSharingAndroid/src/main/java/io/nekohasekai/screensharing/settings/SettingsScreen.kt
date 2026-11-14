@@ -71,7 +71,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
-private const val SOURCE_CODE = "https://github.com/nekohasekai/open-screen-sharing"
+private const val SOURCE_CODE = "https://github.com/ZhiIsland/mac-pen-remote"
 
 fun NavGraphBuilder.settingsDestinations(navController: NavController) {
     val back: @Composable () -> Unit = { BackButton { navController.navigateUp() } }
@@ -261,6 +261,12 @@ private fun PictureSettingsView(navigationIcon: @Composable () -> Unit) {
         SectionHeader(stringResource(R.string.settings_behavior))
         ListGroup {
             SwitchRow(
+                stringResource(R.string.pen_side_button_scroll),
+                AppSettings.stylusButtonScrolls,
+                onCheckedChange = { AppSettings.stylusButtonScrolls = it },
+                icon = Icons.Outlined.Mouse,
+            )
+            SwitchRow(
                 stringResource(R.string.settings_full_screen),
                 AppSettings.pictureFillsScreen,
                 onCheckedChange = { AppSettings.pictureFillsScreen = it },
@@ -298,6 +304,7 @@ private fun ControlSettingsView(navigationIcon: @Composable () -> Unit, onOpenCu
                 icon = Icons.Outlined.ZoomIn,
             )
         }
+        SectionFooter(stringResource(R.string.pen_side_button_help))
     }
 }
 

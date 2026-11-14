@@ -245,6 +245,10 @@ func (c *Client) receiveMediaStream() error {
 	var ports *media.Ports
 	if messageType == 1 {
 		ports, _ = media.ParsePorts(payload)
+		if ports != nil {
+			c.logger.Debug("media UDP endpoints", "local", c.conn.LocalAddr(), "remote", c.conn.RemoteAddr(),
+				"video_port", ports.Video.Port, "audio_port", ports.Audio.Port)
+		}
 	}
 	c.access.Lock()
 	session := c.media

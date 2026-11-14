@@ -332,6 +332,8 @@ class SessionController(
     private var previousKeyboardSource: String? = null
     private var queuedKeyboardSource: MacInputSource? = null
     private var keyboardSourceTimeout: Job? = null
+    private val highPerformancePictureTimeout = FirstPictureWatchdog(App.scope)
+    private var fellBackToStandard = false
     private var keyboardType = MacKeyboardType.Ansi
     final override var pointerPosition: Offset = Offset.Zero
         private set
@@ -580,7 +582,7 @@ class SessionController(
                         username = credentials.account?.username ?: "",
                         password = passwordUpdate,
                         remoteProtocol = route.remoteProtocol,
-                        usesHighPerformance = usesHighPerformance,
+                        usesHighPerformance = usesHighPerformance || fellBackToStandard,
                         memory = memory,
                         device = device,
                     ),
@@ -723,6 +725,7 @@ class SessionController(
     }
 
     private fun teardown() {
+        highPerformancePictureTimeout.cancel()
         captureThumbnail()
         assistCursorShown = false
         isScrollGliding = false
@@ -933,6 +936,7 @@ class SessionController(
                 }
                 requestVirtualDisplay()
                 startHighPerformanceIfDisplayReady()
+                watchHighPerformancePicture()
                 closeIfSuspending()
             }
 
@@ -1026,6 +1030,7 @@ class SessionController(
         this.picture = picture
         if (picture == ScreenPicture.Current) {
             hasPicture = true
+            highPerformancePictureTimeout.cancel()
         }
         val size = Size(width.toFloat(), height.toFloat())
         if (size == imageSize) return
@@ -1086,7 +1091,36 @@ class SessionController(
             return
         }
         if (!usesHighPerformance) return
+        if ((failure.kind == MediaFailure.Kind.Silent || failure.kind == MediaFailure.Kind.Network) && fallbackToStandard()) return
         failHighPerformance(failure)
+    }
+
+    private fun watchHighPerformancePicture() {
+        highPerformancePictureTimeout.cancel()
+        if (!usesHighPerformance || hasPicture) return
+        val watchedSession = session
+        highPerformancePictureTimeout.start(
+            isBackground = { sceneInBackground },
+            isPending = { session === watchedSession && usesHighPerformance && !hasPicture && !isClosing && phase == SessionPhase.Connected },
+            timedOut = {
+                if (!fallbackToStandard()) {
+                    failHighPerformance(MediaFailure(MediaFailure.Kind.Network, App.instance.getString(R.string.pen_media_timeout)))
+                }
+            },
+        )
+    }
+
+    private fun fallbackToStandard(): Boolean {
+        val credentials = credentials ?: return false
+        if (fellBackToStandard || isClosing) return false
+        releaseAllKeys()
+        teardown()
+        fellBackToStandard = true
+        usesHighPerformance = false
+        hdrEnabled = false
+        notice = SessionNotice(App.instance.getString(R.string.pen_media_fallback))
+        connect(credentials)
+        return true
     }
 
     private fun failHighPerformance(failure: MediaFailure) {

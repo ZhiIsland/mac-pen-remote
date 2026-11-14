@@ -42,12 +42,12 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "io.nekohasekai.screensharing"
+        applicationId = "io.github.zhiisland.macpenremote"
         minSdk = 24
         targetSdk = 37
         versionCode = providers.gradleProperty("versionCode").orNull?.toInt() ?: 1
-        versionName = providers.gradleProperty("versionName").orNull ?: "1.0.1"
-        base.archivesName.set("OpenScreenSharing")
+        versionName = providers.gradleProperty("versionName").orNull ?: "1.0.1-pen.1"
+        base.archivesName.set("MacPenRemote")
     }
 
     splits {
@@ -125,6 +125,8 @@ tasks.withType<KotlinCompile>().configureEach {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     implementation(files("libs/libsharing.aar"))
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
 
