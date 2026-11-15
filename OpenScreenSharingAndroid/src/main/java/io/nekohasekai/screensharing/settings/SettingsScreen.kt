@@ -204,6 +204,7 @@ fun NavGraphBuilder.settingsDestinations(navController: NavController) {
             back,
             onOpenCursorStyle = { navController.navigate("settings/control/cursor_style") },
             onPenDiagnostics = { navController.navigate("settings/control/pen_diagnostics") },
+            onPenMenu = { navController.navigate("settings/control/pen_menu") },
         )
     }
     composable(
@@ -216,6 +217,7 @@ fun NavGraphBuilder.settingsDestinations(navController: NavController) {
         CursorStyleView(back)
     }
     composable("settings/control/pen_diagnostics") { PenDiagnosticsScreen(back) }
+    composable("settings/control/pen_menu") { PenMenuSettings(back) }
 }
 
 @Composable
@@ -252,7 +254,7 @@ private fun SettingsScreen(navController: NavController) {
 }
 
 @Composable
-private fun SettingsLink(icon: ImageVector, title: String, onClick: () -> Unit) {
+internal fun SettingsLink(icon: ImageVector, title: String, onClick: () -> Unit) {
     ListItem(
         headlineContent = { Text(title) },
         leadingContent = { Icon(icon, contentDescription = null) },
@@ -278,7 +280,7 @@ private fun PictureSettingsView(navigationIcon: @Composable () -> Unit) {
 }
 
 @Composable
-private fun ControlSettingsView(navigationIcon: @Composable () -> Unit, onOpenCursorStyle: () -> Unit, onPenDiagnostics: () -> Unit) {
+private fun ControlSettingsView(navigationIcon: @Composable () -> Unit, onOpenCursorStyle: () -> Unit, onPenDiagnostics: () -> Unit, onPenMenu: () -> Unit) {
     PageScaffold(title = stringResource(R.string.settings_control), navigationIcon = navigationIcon) {
         SectionHeader(stringResource(R.string.settings_customization))
         val styleName = when (val style = AppSettings.cursorStyle) {
@@ -304,6 +306,7 @@ private fun ControlSettingsView(navigationIcon: @Composable () -> Unit, onOpenCu
                 icon = Icons.Outlined.ZoomIn,
             )
         }
+        PointerControlSettings(onPenMenu)
         SectionHeader(stringResource(R.string.pen_settings_title))
         ListGroup {
             SwitchRow(
@@ -363,6 +366,9 @@ private fun PenShortcutRow(title: String, selected: PenShortcutAction, onSelect:
                 PenShortcutAction.Toolbar -> R.string.pen_action_toolbar
                 PenShortcutAction.MissionControl -> R.string.pen_action_mission_control
                 PenShortcutAction.ShowDesktop -> R.string.pen_action_show_desktop
+                PenShortcutAction.MousePanel -> R.string.control_mouse_panel
+                PenShortcutAction.DragLock -> R.string.control_drag_lock
+                PenShortcutAction.FingerMode -> R.string.control_finger_mode
             },
         )
     }

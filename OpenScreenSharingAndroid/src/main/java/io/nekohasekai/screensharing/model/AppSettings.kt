@@ -12,6 +12,20 @@ import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
 
 object AppSettings {
+    var penMenuActions: List<PenMenuAction> by Persisted("penMenuActions", serializer<List<PenMenuAction>>(), PenMenuAction.defaults)
+
+    var fingerInputMode: FingerInputMode by Persisted("fingerInputMode", serializer<FingerInputMode>(), FingerInputMode.Trackpad)
+
+    var pointerSpeed: Float by Persisted("pointerSpeed", serializer<Float>(), 1f)
+
+    var pointerAccelerates: Boolean by Persisted("pointerAccelerates", serializer<Boolean>(), true)
+
+    var showsMousePanel: Boolean by Persisted("showsMousePanel", serializer<Boolean>(), false)
+
+    var mousePanelX: Float by Persisted("mousePanelX", serializer<Float>(), 1f)
+
+    var mousePanelY: Float by Persisted("mousePanelY", serializer<Float>(), 0.8f)
+
     var stylusButtonScrolls: Boolean by Persisted("stylusButtonScrolls", serializer<Boolean>(), true)
 
     var stylusHoverScrolls: Boolean by Persisted("stylusHoverScrolls", serializer<Boolean>(), true)
@@ -68,6 +82,9 @@ enum class PenShortcutAction {
     Toolbar,
     MissionControl,
     ShowDesktop,
+    MousePanel,
+    DragLock,
+    FingerMode,
 }
 
 @Serializable

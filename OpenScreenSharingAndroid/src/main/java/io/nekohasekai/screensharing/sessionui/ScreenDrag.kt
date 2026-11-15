@@ -46,7 +46,7 @@ class ScreenDrag(
         location: Offset,
         relative: Boolean,
     ) {
-        if (controller.remoteDragOffer == null || session != null || touch == attemptedTouch) return
+        if (controller.isDragLocked || controller.remoteDragOffer == null || session != null || touch == attemptedTouch) return
         attemptedTouch = touch
         this.relative = relative
         last = location to SystemClock.uptimeMillis()

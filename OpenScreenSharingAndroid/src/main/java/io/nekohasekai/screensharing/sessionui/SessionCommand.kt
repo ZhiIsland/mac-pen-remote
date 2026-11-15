@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import io.nekohasekai.screensharing.R
 import io.nekohasekai.screensharing.model.AppSettings
+import io.nekohasekai.screensharing.model.FingerInputMode
 import io.nekohasekai.screensharing.model.RemoteProtocol
 import io.nekohasekai.screensharing.model.ShortcutAction
 import io.nekohasekai.screensharing.session.RemotePlatform
@@ -51,6 +52,9 @@ enum class SessionCommand(
     NativeTouch("nativeTouch"),
     Observe("control"),
     PointerLock("pointerLock"),
+    MousePanel("mousePanel"),
+    FingerMode("fingerMode"),
+    DragLock("dragLock"),
     Keyboard("keyboard"),
     QuickInput("quickInput"),
     MissionControl("missionControl"),
@@ -75,6 +79,9 @@ enum class SessionCommand(
                 SendAudio -> R.string.model_send_audio
                 Observe -> R.string.model_observe_mode
                 PointerLock -> R.string.model_pointer_lock
+                MousePanel -> R.string.control_mouse_panel
+                FingerMode -> R.string.control_finger_mode
+                DragLock -> R.string.control_drag_lock
                 NativeTouch -> R.string.chrome_native_touch
                 Keyboard -> R.string.settings_keyboard
                 QuickInput -> R.string.settings_quick_input
@@ -96,6 +103,9 @@ enum class SessionCommand(
                 SendAudio -> Icons.Outlined.Mic
                 Observe -> Icons.Outlined.Visibility
                 PointerLock -> Icons.Outlined.Mouse
+                MousePanel -> Icons.Outlined.Mouse
+                FingerMode -> Icons.Outlined.TouchApp
+                DragLock -> Icons.Outlined.AdsClick
                 NativeTouch -> Icons.Outlined.TouchApp
                 Keyboard -> Icons.Outlined.Keyboard
                 QuickInput -> Icons.Outlined.TextFields
@@ -109,7 +119,7 @@ enum class SessionCommand(
             when (this) {
                 ZoomMode, Scale, Displays, Quality, Resolution, Hdr -> SessionCommandCategory.View
                 Audio, SendAudio -> SessionCommandCategory.Sound
-                Observe, PointerLock, NativeTouch, Keyboard, QuickInput, MissionControl, AppWindows, ShowDesktop, Launchpad,
+                Observe, PointerLock, MousePanel, FingerMode, DragLock, NativeTouch, Keyboard, QuickInput, MissionControl, AppWindows, ShowDesktop, Launchpad,
                 -> SessionCommandCategory.Control
                 Clipboard -> SessionCommandCategory.Clipboard
                 DebugInfo -> SessionCommandCategory.Debug
@@ -143,7 +153,7 @@ enum class SessionCommand(
 
     fun applies(platform: RemotePlatform): Boolean = when (this) {
         MissionControl, AppWindows, ShowDesktop, Launchpad -> platform == RemotePlatform.Mac
-        ZoomMode, Scale, Displays, Quality, Resolution, Hdr, Audio, SendAudio, NativeTouch, Observe, PointerLock, Keyboard, QuickInput,
+        ZoomMode, Scale, Displays, Quality, Resolution, Hdr, Audio, SendAudio, NativeTouch, Observe, PointerLock, MousePanel, FingerMode, DragLock, Keyboard, QuickInput,
         Clipboard, DebugInfo,
         -> true
     }
@@ -182,7 +192,7 @@ enum class SessionCommand(
             Observe -> {
                 offers(SessionCapabilities.Control) && offers(SessionCapabilities.Observe)
             }
-            Keyboard, QuickInput -> {
+            Keyboard, QuickInput, MousePanel, FingerMode, DragLock -> {
                 offers(SessionCapabilities.Control)
             }
             NativeTouch -> {
@@ -221,7 +231,7 @@ enum class SessionCommand(
             PointerLock -> {
                 controller.canLockPointer
             }
-            NativeTouch, Keyboard, QuickInput, MissionControl, AppWindows, ShowDesktop, Launchpad -> {
+            NativeTouch, Keyboard, QuickInput, MousePanel, FingerMode, DragLock, MissionControl, AppWindows, ShowDesktop, Launchpad -> {
                 controller.isControlling
             }
         }
@@ -338,6 +348,17 @@ private fun BarCommand(
         SessionCommand.NativeTouch -> {
             BarToggle(title, icon, controller.isNativeTouchOn, enabled) { controller.setNativeTouch(it) }
         }
+        SessionCommand.MousePanel -> {
+            BarToggle(title, icon, AppSettings.showsMousePanel, enabled) { controller.setMousePanelVisible(it) }
+        }
+        SessionCommand.FingerMode -> {
+            BarToggle(title, icon, AppSettings.fingerInputMode == FingerInputMode.Direct, enabled) {
+                controller.setFingerInputMode(if (it) FingerInputMode.Direct else FingerInputMode.Trackpad)
+            }
+        }
+        SessionCommand.DragLock -> {
+            BarToggle(title, icon, controller.isDragLocked, enabled) { controller.setDragLocked(it) }
+        }
         SessionCommand.Keyboard -> {
             val visible = controller.isKeyboardVisible
             BarButton(
@@ -411,6 +432,17 @@ private fun MenuCommand(
         }
         SessionCommand.NativeTouch -> {
             MenuToggle(command, enabled, menu, controller.isNativeTouchOn) { controller.setNativeTouch(it) }
+        }
+        SessionCommand.MousePanel -> {
+            MenuToggle(command, enabled, menu, AppSettings.showsMousePanel) { controller.setMousePanelVisible(it) }
+        }
+        SessionCommand.FingerMode -> {
+            MenuToggle(command, enabled, menu, AppSettings.fingerInputMode == FingerInputMode.Direct) {
+                controller.setFingerInputMode(if (it) FingerInputMode.Direct else FingerInputMode.Trackpad)
+            }
+        }
+        SessionCommand.DragLock -> {
+            MenuToggle(command, enabled, menu, controller.isDragLocked) { controller.setDragLocked(it) }
         }
         SessionCommand.Keyboard -> {
             val visible = controller.isKeyboardVisible

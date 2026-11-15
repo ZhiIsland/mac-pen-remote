@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="control_input_title">Touch and mouse controls</string>
+    <string name="control_finger_mode">Finger input mode</string>
+    <string name="control_finger_mode_value">Finger input: %1$s</string>
+    <string name="control_trackpad">Trackpad</string>
+    <string name="control_direct">Direct pointing</string>
+    <string name="control_pointer_speed">Pointer speed</string>
+    <string name="control_pointer_acceleration">Pointer acceleration</string>
+    <string name="control_mouse_panel">One-handed mouse panel</string>
+    <string name="control_input_help">Trackpad moves the pointer relatively; direct pointing moves it to your finger. Tap to click and hold to drag. The pen keeps direct positioning. Speed and acceleration affect relative movement. Choosing a finger mode turns off native touch.</string>
+    <string name="control_edit_pen_menu">Customize pen menu</string>
+    <string name="control_pen_menu_help">Choose the actions shown when holding the hovering side button. Use the arrows to reorder them. Keep at least one action. Quick Input includes your saved key sequences.</string>
+    <string name="control_move_up">Move %1$s up</string>
+    <string name="control_move_down">Move %1$s down</string>
+    <string name="control_reset_menu">Restore default menu</string>
+    <string name="control_edit_quick_inputs">Edit Quick Input…</string>
+    <string name="control_drag_lock">Start locked drag</string>
+    <string name="control_end_drag">End drag</string>
+    <string name="control_drag_help">Left button held. Move the pointer, then tap End drag or the left button to release.</string>
+    <string name="control_copy">Copy</string>
+    <string name="control_paste">Paste</string>
+    <string name="control_cut">Cut</string>
+    <string name="control_undo">Undo</string>
+    <string name="control_redo">Redo</string>
+    <string name="control_select_all">Select all</string>
+    <string name="control_find">Find</string>
+    <string name="control_switch_app">Switch application</string>
+    <string name="control_escape">Escape</string>
+    <string name="control_panel_title">Mouse</string>
+    <string name="control_move_panel">Drag to move mouse panel</string>
+    <string name="control_close_panel">Hide mouse panel</string>
+    <string name="control_panel_pad">Slide to move · tap to click</string>
+    <string name="control_panel_scroll">Scroll</string>
+    <string name="control_left_button">Left</string>
+    <string name="control_right_button">Right</string>
+    <string name="control_middle_button">Middle</string>
+</resources>

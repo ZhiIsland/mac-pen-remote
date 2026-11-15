@@ -531,7 +531,7 @@ private fun CategoryMenuContent(
                     listOf(commands.filter { it !in local && it !in pickers })
             }
             SessionCommandCategory.Control -> {
-                val local = listOf(SessionCommand.Observe, SessionCommand.PointerLock, SessionCommand.NativeTouch, SessionCommand.Keyboard)
+                val local = listOf(SessionCommand.Observe, SessionCommand.PointerLock, SessionCommand.MousePanel, SessionCommand.FingerMode, SessionCommand.DragLock, SessionCommand.NativeTouch, SessionCommand.Keyboard)
                 listOf(commands.filter { it in local }, commands.filter { it == SessionCommand.QuickInput }, commands.filter { it !in local && it != SessionCommand.QuickInput })
             }
             else -> {

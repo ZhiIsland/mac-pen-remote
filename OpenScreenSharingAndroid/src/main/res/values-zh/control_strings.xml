@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="control_input_title">手指与鼠标操作</string>
+    <string name="control_finger_mode">手指操作模式</string>
+    <string name="control_finger_mode_value">手指操作：%1$s</string>
+    <string name="control_trackpad">触摸板</string>
+    <string name="control_direct">直接定位</string>
+    <string name="control_pointer_speed">指针速度</string>
+    <string name="control_pointer_acceleration">指针加速</string>
+    <string name="control_mouse_panel">单手鼠标面板</string>
+    <string name="control_input_help">触摸板模式相对移动鼠标；直接定位模式把鼠标移到手指位置。轻点单击，长按拖拽。笔保持直接定位。速度和加速仅影响相对移动；选择手指模式会关闭原生触控。</string>
+    <string name="control_edit_pen_menu">自定义笔快捷菜单</string>
+    <string name="control_pen_menu_help">选择悬停按住侧键时显示的动作，并用箭头调整顺序。至少保留一项。“快捷输入”可使用已有的自定义按键组合。</string>
+    <string name="control_move_up">将“%1$s”上移</string>
+    <string name="control_move_down">将“%1$s”下移</string>
+    <string name="control_reset_menu">恢复默认菜单</string>
+    <string name="control_edit_quick_inputs">编辑快捷输入…</string>
+    <string name="control_drag_lock">开始锁定拖拽</string>
+    <string name="control_end_drag">结束拖拽</string>
+    <string name="control_drag_help">左键保持按下。移动指针后，点“结束拖拽”或左键按钮释放。</string>
+    <string name="control_copy">复制</string>
+    <string name="control_paste">粘贴</string>
+    <string name="control_cut">剪切</string>
+    <string name="control_undo">撤销</string>
+    <string name="control_redo">重做</string>
+    <string name="control_select_all">全选</string>
+    <string name="control_find">查找</string>
+    <string name="control_switch_app">切换应用</string>
+    <string name="control_escape">Esc</string>
+    <string name="control_panel_title">鼠标</string>
+    <string name="control_move_panel">拖动以移动鼠标面板</string>
+    <string name="control_close_panel">收起鼠标面板</string>
+    <string name="control_panel_pad">滑动移鼠标 · 轻点单击</string>
+    <string name="control_panel_scroll">滚动</string>
+    <string name="control_left_button">左键</string>
+    <string name="control_right_button">右键</string>
+    <string name="control_middle_button">中键</string>
+</resources>

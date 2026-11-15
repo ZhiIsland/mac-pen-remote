@@ -23,6 +23,16 @@ An independent Android fork of [Open Screen Sharing](https://github.com/nekohase
 
 These controls work through ordinary VNC and Apple VNC. Pressure changes scrolling locally; pressure and tilt are not forwarded as drawing tablet input to the Mac. Real S Pen hardware validation is still required. See [Chinese controls and validation notes](docs/s-pen-controls.md).
 
+## Touch and mouse controls (pen.4)
+
+- Customize and reorder the pen menu under Settings → Control. Editing shortcuts include Copy, Paste, Cut, Undo, Redo, Select All, Find, application switching and Escape. Saved Quick Input sequences are available in a submenu.
+- Start a locked left drag at the pointer, lift and reposition your pen/finger, then use End drag or the panel's left button to release. A visible mouse panel is shown while a drag is locked. Focus loss, backgrounding, input reset and session replacement clear the latch.
+- The movable one-handed mouse panel provides relative pointing, a vertical scroll area, left/right/middle buttons, keyboard access, drag locking and a finger-mode switch. Its normalized location is saved and constrained to the available display area; it hides while the software keyboard is visible.
+- Fingers can use relative trackpad movement or direct pointing. The pen retains direct positioning. Selecting a finger mode or starting a locked drag switches off native touch.
+- Relative pointer speed can be set from 50% to 200%, with optional acceleration. The previous speed curve is retained by default.
+
+These additions use the existing input protocols and do not require a Mac helper. Automatic keyboard pop-up based on remote focus is not included. See [Chinese pen.4 usage and device validation notes](docs/control-enhancements.md).
+
 **Galaxy S25 Ultra:** Samsung removed Bluetooth/BLE and Air Actions from its S Pen. This fork uses Android's near-screen stylus hover/button events; it cannot receive distant button presses or motion gestures. See [Samsung's S25 Ultra S Pen guidance](https://www.samsung.com/us/support/answer/ANS10004602/). Actual hover-button delivery depends on One UI and its Air Command settings; test on the phone before relying on it.
 
 ## High Performance recovery

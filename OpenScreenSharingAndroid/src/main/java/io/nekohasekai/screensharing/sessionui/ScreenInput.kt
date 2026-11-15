@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.core.view.ViewConfigurationCompat
 import io.nekohasekai.screensharing.model.AppSettings
 import io.nekohasekai.screensharing.model.CursorStyle
+import io.nekohasekai.screensharing.model.FingerInputMode
 import io.nekohasekai.screensharing.model.PenShortcutAction
 import io.nekohasekai.screensharing.session.CursorShape
 import io.nekohasekai.screensharing.session.CursorThemeStore
@@ -44,6 +45,7 @@ class ScreenInput(
     private enum class TouchGesture { SecondaryTap, Pan, Pinch, Rotation }
 
     private inner class Finger(val id: Int, val start: Offset, val startTime: Long, val startPointer: Offset) {
+        val direct = AppSettings.fingerInputMode == FingerInputMode.Direct
         var last = start
         var phase = Phase.Pending
         var travel = 0f
@@ -134,6 +136,9 @@ class ScreenInput(
     private val windowFocusListener = ViewTreeObserver.OnWindowFocusChangeListener { updatePointerCapture() }
     private var observedTree: ViewTreeObserver? = null
     private var detached = false
+    private var appliedFingerMode = AppSettings.fingerInputMode
+    private var panelScroll = ScrollStream()
+    private var panelScrollActive = false
 
     private val locations = HashMap<Int, Offset>()
     private var velocityTracker: VelocityTracker? = null
@@ -237,6 +242,8 @@ class ScreenInput(
         detached = true
         cancelStylusInput()
         penQuickMenu.dismiss()
+        endPanelScroll(cancelled = true)
+        controller.setDragLocked(false)
         observedTree?.takeIf { it.isAlive }?.removeOnWindowFocusChangeListener(windowFocusListener)
         observedTree = null
         PointerLock.removeReceiver(pointerLockReceiver)
@@ -523,6 +530,14 @@ class ScreenInput(
         val next = Finger(id, location, event.eventTime, controller.pointerPosition)
         finger = next
         if (!controller.isControlling) return
+        if (next.direct) {
+            if (!view.surface.imageRect.inflate(touchMargin).contains(location)) {
+                finger = null
+                return
+            }
+            controller.movePointer(view.surface.imagePoint(location))
+        }
+        if (controller.isDragLocked) return
         pressIndicator.beginHold(PRESS_INDICATOR_DELAY, PRESS_HOLD - PRESS_INDICATOR_DELAY)
         val task = Runnable { if (finger === next && next.phase == Phase.Pending) beginDrag(next) }
         holdTask = task
@@ -540,8 +555,13 @@ class ScreenInput(
             finger.phase = Phase.Pointing
             pressIndicator.dismiss()
         }
-        movePointer(delta, finger.velocity(time).getDistance())
-        if (finger.phase == Phase.Dragging) drag.begin(ScreenDrag.TouchKey(event.downTime, id), location, relative = true)
+        if (finger.direct) {
+            controller.movePointer(view.surface.imagePoint(location))
+            view.surface.keepPointerVisible()
+        } else {
+            movePointer(delta, finger.velocity(time).getDistance())
+        }
+        if (finger.phase == Phase.Dragging) drag.begin(ScreenDrag.TouchKey(event.downTime, id), location, relative = !finger.direct)
     }
 
     private fun fingerEnded(id: Int, location: Offset, time: Long, cancelled: Boolean) {
@@ -555,7 +575,7 @@ class ScreenInput(
         cancelHold()
         when (finger.phase) {
             Phase.Pending -> if (liftedAt != null && finger.isTap(liftedAt) && controller.isControlling) {
-                controller.movePointer(finger.startPointer)
+                controller.movePointer(if (finger.direct) view.surface.imagePoint(finger.start) else finger.startPointer)
                 controller.click(PointerButtons.Primary)
             }
             Phase.Pointing -> Unit
@@ -577,7 +597,8 @@ class ScreenInput(
     }
 
     fun movePointer(delta: Offset, speed: Float) {
-        val gain = 1.2f + min(speed / density / 1200f, 1.8f)
+        if (!delta.x.isFinite() || !delta.y.isFinite()) return
+        val gain = PointerMotion.gain(speed, density, AppSettings.pointerSpeed, AppSettings.pointerAccelerates)
         val scale = view.surface.displayScale
         if (scale <= 0f) return
         val position = controller.pointerPosition
@@ -1149,6 +1170,7 @@ class ScreenInput(
     }
 
     fun cancelStylusInput() {
+        endPanelScroll(cancelled = true)
         cancelStylusShortcuts()
         cancelStylusLoupe()
         stylusPalmGuard.reset()
@@ -1166,11 +1188,19 @@ class ScreenInput(
     }
 
     fun sessionStateDidChange() {
+        if (appliedFingerMode != AppSettings.fingerInputMode) {
+            appliedFingerMode = AppSettings.fingerInputMode
+            rejectExistingFingerInput()
+            controller.releaseAllKeys()
+            controller.setNativeTouch(false)
+        }
         val run = controller.presentationRun
         val controls = controller.isControlling
         if (run != stylusSessionRun || (stylusWasControlling && !controls)) {
             cancelStylusInput()
             penQuickMenu.dismiss()
+            endPanelScroll(cancelled = true)
+            controller.setDragLocked(false)
         }
         stylusSessionRun = run
         stylusWasControlling = controls
@@ -1271,7 +1301,29 @@ class ScreenInput(
             PenShortcutAction.Toolbar -> controller.toggleToolbar()
             PenShortcutAction.MissionControl -> if (controller.canPerform(SystemCommand.MissionControl)) controller.perform(SystemCommand.MissionControl)
             PenShortcutAction.ShowDesktop -> if (controller.canPerform(SystemCommand.ShowDesktop)) controller.perform(SystemCommand.ShowDesktop)
+            PenShortcutAction.MousePanel -> controller.setMousePanelVisible(!AppSettings.showsMousePanel)
+            PenShortcutAction.DragLock -> {
+                controller.movePointer(view.surface.imagePoint(location))
+                controller.setDragLocked(!controller.isDragLocked)
+            }
+            PenShortcutAction.FingerMode -> controller.toggleFingerInputMode()
         }
+    }
+
+    fun scrollFromPanel(delta: Offset) {
+        if (!controller.isControlling) return
+        if (!panelScrollActive) {
+            controller.stopScrollMomentum()
+            panelScroll = ScrollStream(usesPhases = controller.sendsGesturesToMac)
+            panelScrollActive = true
+        }
+        scroll(panelScroll, delta)
+    }
+
+    fun endPanelScroll(cancelled: Boolean = false) {
+        endScroll(panelScroll, Offset.Zero, cancelled)
+        panelScroll = ScrollStream()
+        panelScrollActive = false
     }
 
     private fun updateStylusLoupe(location: Offset, pressed: Boolean, time: Long) {

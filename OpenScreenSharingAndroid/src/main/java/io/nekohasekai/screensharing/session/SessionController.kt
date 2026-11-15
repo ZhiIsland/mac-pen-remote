@@ -34,6 +34,7 @@ import io.nekohasekai.screensharing.model.ComputerStore
 import io.nekohasekai.screensharing.model.ConnectionRecord
 import io.nekohasekai.screensharing.model.CursorStyle
 import io.nekohasekai.screensharing.model.DeviceModel
+import io.nekohasekai.screensharing.model.FingerInputMode
 import io.nekohasekai.screensharing.model.KeyMapping
 import io.nekohasekai.screensharing.model.KeyShortcut
 import io.nekohasekai.screensharing.model.KeyShortcuts
@@ -41,6 +42,7 @@ import io.nekohasekai.screensharing.model.KeyTranslations
 import io.nekohasekai.screensharing.model.MappingTarget
 import io.nekohasekai.screensharing.model.NetworkConfiguration
 import io.nekohasekai.screensharing.model.PasswordUpdate
+import io.nekohasekai.screensharing.model.PenMenuAction
 import io.nekohasekai.screensharing.model.QuickInput
 import io.nekohasekai.screensharing.model.RemoteProtocol
 import io.nekohasekai.screensharing.model.SessionQuality
@@ -339,6 +341,8 @@ class SessionController(
         private set
     var pointerButtons: PointerButtons = PointerButtons.None
         private set
+    private val dragLock = PointerDragLock()
+    val isDragLocked: Boolean get() = dragLock.active
     private var clickCount = 0
     private var lastPress: Press? = null
     private var pointerModifiers: Set<ModifierKey> = emptySet()
@@ -746,6 +750,7 @@ class SessionController(
         awaitsVirtualDisplay = false
         holdsPointer = false
         remoteDragActive = false
+        dragLock.clear()
         pointerButtons = PointerButtons.None
         pointerModifiers = emptySet()
         nativeTouchIDs.clear()
@@ -2033,13 +2038,41 @@ class SessionController(
     }
 
     fun setButtons(buttons: PointerButtons) {
-        if (PointerButtons.Primary !in buttons) remoteDragOffer = null
-        pointerButtons = buttons
+        val effective = dragLock.buttons(buttons)
+        if (PointerButtons.Primary !in effective) remoteDragOffer = null
+        pointerButtons = effective
         if (!isControlling) {
             updateAssistCursor()
             return
         }
-        sendPointer(buttons)
+        sendPointer(effective)
+    }
+
+    fun setDragLocked(locked: Boolean) {
+        if (locked == isDragLocked || (locked && !isControlling)) return
+        stopScrollMomentum()
+        dragLock.set(locked)
+        if (locked) {
+            isToolbarVisible = false
+            setNativeTouch(false)
+        }
+        if (locked) press(PointerButtons.Primary, clickCount = 1) else release(PointerButtons.Primary)
+    }
+
+    fun setMousePanelVisible(visible: Boolean) {
+        if (!visible) setDragLocked(false)
+        AppSettings.showsMousePanel = visible
+        if (visible) isToolbarVisible = false
+    }
+
+    fun setFingerInputMode(mode: FingerInputMode) {
+        releaseAllKeys()
+        setNativeTouch(false)
+        AppSettings.fingerInputMode = mode
+    }
+
+    fun toggleFingerInputMode() {
+        setFingerInputMode(if (AppSettings.fingerInputMode == FingerInputMode.Trackpad) FingerInputMode.Direct else FingerInputMode.Trackpad)
     }
 
     private fun sendPointer(buttons: PointerButtons) {
@@ -2109,6 +2142,10 @@ class SessionController(
         button: PointerButtons,
         count: Int = 1,
     ) {
+        if (isDragLocked) {
+            setDragLocked(false)
+            if (button == PointerButtons.Primary) return
+        }
         repeat(count) {
             press(button)
             release(button)
@@ -2466,6 +2503,34 @@ class SessionController(
         performMapping(input.steps(mappingTarget), emptySet())
     }
 
+    fun performEditingAction(action: PenMenuAction) {
+        if (!isControlling) return
+        setDragLocked(false)
+        val key = when (action) {
+            PenMenuAction.Copy -> MacKey(8, 'c'.code)
+            PenMenuAction.Paste -> MacKey(9, 'v'.code)
+            PenMenuAction.Cut -> MacKey(7, 'x'.code)
+            PenMenuAction.Undo, PenMenuAction.Redo -> MacKey(6, 'z'.code)
+            PenMenuAction.SelectAll -> MacKey(0, 'a'.code)
+            PenMenuAction.Find -> MacKey(3, 'f'.code)
+            PenMenuAction.SwitchApp -> MacKey.tab
+            PenMenuAction.Escape -> MacKey.escape
+            else -> return
+        }
+        screen?.forgetTypedText()
+        val base = if (action == PenMenuAction.SwitchApp && info.platform == RemotePlatform.Pc) {
+            ModifierKey.Option
+        } else if (info.platform == RemotePlatform.Pc) {
+            ModifierKey.Control
+        } else {
+            ModifierKey.Command
+        }
+        var modifiers = if (action == PenMenuAction.Escape) emptySet() else setOf(base)
+        if (action == PenMenuAction.Redo) modifiers = modifiers + ModifierKey.Shift
+        stickyModifiers = emptySet()
+        tap(key, modifiers - lockedModifiers - pressedModifiers)
+    }
+
     private fun tapKey(key: MacKey) {
         val sticky = stickyModifiers
         stickyModifiers = emptySet()
@@ -2692,6 +2757,7 @@ class SessionController(
     }
 
     fun releaseHeldKeys() {
+        dragLock.clear()
         val keys = pressedKeys.values.sortedBy { it.isModifier }
         pressedKeys.clear()
         for (key in keys) {

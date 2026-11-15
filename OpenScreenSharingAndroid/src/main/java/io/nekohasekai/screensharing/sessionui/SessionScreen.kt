@@ -175,6 +175,12 @@ fun SessionScreen(
             closes = WindowInsets.captionBar.getTop(density) == 0,
             onClose = controller::close,
         )
+        if (controller.isControlling && !controller.isKeyboardVisible && !controller.isCustomizingToolbar &&
+            !controller.isEditingQuickInputs && controller.alert == null && controller.credentialPrompt == null &&
+            (AppSettings.showsMousePanel || controller.isDragLocked)
+        ) {
+            screenView?.let { MouseControlPanel(controller, it) }
+        }
         if (controller.isControlling) {
             val gestures = WindowInsets.systemGestures
             val left = gestures.getLeft(density, LayoutDirection.Ltr)

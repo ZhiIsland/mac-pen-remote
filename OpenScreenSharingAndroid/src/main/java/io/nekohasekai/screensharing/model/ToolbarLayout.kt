@@ -100,7 +100,7 @@ class ToolbarLayout private constructor(
             ToolbarLayout(
                 RemotePlatform.Mac,
                 "SessionToolbar",
-                listOf(SessionCommand.Displays, SessionCommand.Audio, SessionCommand.PointerLock, SessionCommand.Keyboard, SessionCommand.Clipboard),
+                listOf(SessionCommand.Displays, SessionCommand.Audio, SessionCommand.PointerLock, SessionCommand.MousePanel, SessionCommand.Keyboard, SessionCommand.Clipboard),
             )
         val pc =
             ToolbarLayout(
